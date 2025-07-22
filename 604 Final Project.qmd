@@ -1,0 +1,395 @@
+---
+title: "604 Final Project"
+author: "Nandni Talreja"
+date: "04/03/2024"
+format:
+  html:
+    df-print: paged
+    css: "styles.css"
+    embed-resources: true
+    self-contained-math: true
+categories:
+  - Final Project
+---
+
+# Navigating the Cyber Highway: Assessing the knowledge and Awareness of Vehicle Cybersecurity among Law Enforcement Officers (LEOs)
+
+## Details of the Final Project
+The primary goal of the written project (as well as the recorded slideshow presentation) is to apply techniques and principles covered in the readings, homework, and lectures. Consider these materials as your rubric! That is, your grade will be based primarily on the quality of communication, in keeping with the content of the course. 
+Project Dataset - Law Cybersecurity Survey (unpublished, conducted by Nandni Talreja in the Human Performance Lab under Professor Shannon Roberts)
+Expected Audience - Police Officers and Police Stations (for training)
+
+## Project Propoal
+I plan to study the survey data collected in a study of Law Enforcement Officers (LEOs) awareness of vehicle cybersecurity. The study was conducted by me in the Human Performance Lab under Professor Shannon Roberts. The aim of the study was to investigate the association between cybersecurity training and officers' understanding of cybersecurity concepts applicable to police vehicle systems. By taking into account demographic variables such as age groups, education levels, years of experience, and hours spent in police vehicles, I plan to study how these variables interact with the level of cybersecurity training to influence officers' understanding of cybersecurity in police vehicles.
+I plan to conduct statistical analysis to understand the connection between the demographic variables and the understanding of vehicular cybersecurity. I plan to use regression modeling and hypothesis testing to determine the level of understanding LEOs had of vehicular cybersecurity before and after their training. I also plan to look into the difference in understanding in the two groups - Training and Sham. The aim of my study is to contribute to the understanding of cybersecurity training, both vehicular and otherwise, for LEOs. The aim is to understand if the training model created works best for enhancing officers' cybersecurity awareness specific to police vehicle systems. With my study, I hope to provide strategies for improving the training models relating to cybersecurity in the Law Enforcement Department.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# libraries
+
+library(ggplot2)
+library(dplyr)
+library(ltm)
+library(psych)
+library(tidyverse)
+library(readxl)
+library(haven) #for loading other datafiles (SAS, STATA, SPSS, etc.)
+library(stringr) # if you have not installed this package, please install it.
+library(lubridate)
+library(knitr)
+library(forcats)
+
+```
+
+### Importing the dataset and cleaning it up to help with analysis
+
+```{r}
+
+# original dataset from the study
+PoliceData <- read.csv("dataset", header = TRUE)
+head(PoliceData)
+
+# cleaning and mutating the data
+
+# #removing the first two rows
+PoliceData <- PoliceData[-c(1,2),]
+PoliceData <- PoliceData[-c(1),]
+
+#removing our test responses
+PoliceData <- PoliceData[which.max(PoliceData$IPAddress == "170.63.193.171") : nrow(PoliceData), ]
+
+#mutating Education
+PoliceData <- PoliceData %>%
+  mutate(Q7 = case_when(
+    Q7 == "Doctorate degree (for example: PhD, EdD)" ~ "Doctorate",
+    Q7 == "Associates degree (for example: AA, AS)" ~ "Associates",
+    Q7 == "Bachelors degree (for example: BA, BS)" ~ "Bachelors",
+    Q7 == "Masters degree (for example: MA, MS, MEng, MEd, MSW, MBA)" ~ "Masters",
+    TRUE ~ Q7  
+  ))
+
+# changing "14 years" to "14" in the years of experience column
+PoliceData <- PoliceData %>%
+  mutate(Q6 = as.character(Q6)) %>%
+  mutate(Q6 = case_when(Q6 == "14 years" ~ "14",
+                        TRUE ~ Q6))
+
+# changing 20-Oct back to 10-20 hours
+PoliceData <- PoliceData %>%
+  mutate(Q8 = as.character(Q8)) %>%
+  mutate(Q8 = case_when(Q8 == "20-Oct" ~ "10 -20",
+                        TRUE ~ Q8))
+
+head(PoliceData) # just for my sanity
+
+colnames(PoliceData) # to understand what columns I want to add to the new dataset that I will use for this project
+
+# creating a new dataset with just the columns that I am going to be using
+data <- PoliceData[, c("Q32", "Q1", "Q2", "Q6", "Q7", "Q8", "Q9", "Q12", "Q13", "Q14", "Q15", "Q16", "Q18", "Q19", "Q22", "Q23", "Q25", "Q28")]
+
+# mutating the years column to be in groups for easy visualization
+data <- data %>%
+  mutate(Q6 = as.numeric(Q6)) %>%
+  mutate(years = case_when(
+    Q6 < 5 ~ "less than 5 years",
+    Q6 >= 5 & Q6 < 10 ~ "5-10",
+    Q6 >= 10 & Q6 < 15 ~ "10-15",
+    Q6 >= 15 & Q6 <20 ~ "15-20",
+    Q6 >= 20 & Q6 <25 ~ "20-25",
+    Q6 >= 25 & Q6 <30 ~ "25-30"
+  ))
+
+head(data) # sanity check
+
+```
+
+## Basic Statistics and Summary of the Data
+```{r}
+
+#average duration
+mean(as.numeric(PoliceData$Duration..in.seconds.))
+
+#changing age to numeric
+data$Q1 <- as.numeric(data$Q1)
+# summary
+summary(data)
+
+# tables
+# gender
+gendert <- table(data$Q2)
+gt <- as.data.frame(gendert)
+kable(gt, caption = "Gender")
+
+# years of experience
+yearst <- table(data$Q6)
+yt <- as.data.frame(yearst)
+kable(yt, caption = "Years of Experience")
+
+yeart <- table(data$years)
+yyt <- as.data.frame(yeart)
+kable(yyt, caption = "Years of Experience")
+
+# degree
+degreet <- table(data$Q7)
+dt <- as.data.frame(degreet)
+kable(dt, caption = "Highest Education Level")
+
+# hours in police vehicle
+hourst <- table(data$Q8)
+ht <- as.data.frame(hourst)
+kable(ht, caption = "Hours in Police Vehicle")
+
+# cyber cases
+cybercasest <- table(data$Q12)
+cct <- as.data.frame(cybercasest)
+kable(cct, caption = "Cyber Cases in the Agency")
+
+# cyber training
+cybertraint <- table(data$Q14)
+ctt <- as.data.frame(cybertraint)
+kable(ctt, caption = "Cyber Training in the Agency")
+
+militaryt <- table(data$Q9)
+mt <- as.data.frame(militaryt)
+kable(mt, caption = "Military Experience")
+
+cyberunitt <- table(data$Q13)
+cut <- as.data.frame(cyberunitt)
+kable(cut, caption = "Cyber Unit in the Agency")
+
+caseworkt <- table(data$Q15)
+cwt <- as.data.frame(caseworkt)
+kable(cwt, caption = "Cases Worked")
+
+vcybert <- table(data$Q16)
+vct <- as.data.frame(vcybert)
+kable(vct, caption = "Experience with Vehicle CyberAttacks")
+
+cybervehiclet <- table(data$Q18)
+cvt <- as.data.frame(cybervehiclet)
+kable(cvt, caption = "Police Vehicle Susceptibility of CyberAttacks")
+
+concernt <- table(data$Q19)
+cont <- as.data.frame(concernt)
+kable(cont, caption = "Vehicle Cyberattacks Concern")
+
+
+```
+
+## Basic Demographic Plots and Analysis
+``` {r Numeric Questions, echo = FALSE}
+# This section plots the questions in the police survey
+
+#changing years to numeric
+data$Q6 <- as.numeric(data$Q6)
+
+#Gender
+ggplot(data = data, aes(x = Q2)) + 
+  stat_count(fill = "lightgreen", color = "black") + 
+  xlab("Gender")
+
+#Years of experience
+ggplot(data = data, aes(x = Q6)) + 
+  geom_bar(fill = "yellow", color = "black") + 
+  xlab("Years of Experience")
+
+ggplot(data = data, aes(x = years)) + 
+  geom_bar(fill = "yellow", color = "black") + 
+  xlab("Years of Experience")
+
+#Education
+ggplot(data = data, aes(x = Q7)) + 
+  geom_bar(stat = "count", fill = "lavender", color = "black") + 
+  xlab("Education")
+
+#military experience
+ggplot(data = data, aes(x = Q9)) + 
+  geom_bar(stat = "count", fill = "brown", color = "black") + 
+  xlab("Military Experience")
+
+#cybercrime unit in police agency
+ggplot(data = data, aes(x = Q13)) + 
+  geom_bar(stat = "count", fill = "red", color = "black") + 
+  xlab("CyberCrime unit in Police Agency")
+
+#cybercrime cases handline in police agency
+ggplot(data = data, aes(x = Q12)) + 
+  geom_bar(stat = "count", fill = "green", color = "black") + 
+  xlab("CyberCrime cases in Police Agency")
+
+#police agency training for cybercrimes
+ggplot(data = data, aes(x = Q14)) + 
+  geom_bar(stat = "count", fill = "yellow", color = "black") + 
+  xlab("CyberCrime Training in Police Agency")
+
+#Time spent in car
+ggplot(data = data, aes(x = Q8)) + 
+  geom_bar(stat = "count", fill = "pink", color = "black") + 
+  xlab("Hours spent in car")
+
+#police vehicle susceptibility of cyberattacks
+ggplot(data = data, aes(x = Q18)) + 
+  geom_bar(stat = "count", fill = "white", color = "black") + 
+  xlab("Police Vehicle Susceptibility of CyberAttacks")
+
+
+
+```
+
+## Now, adding in the "Experimental" and "Sham" aspect to the data
+```{r}
+# {r}
+# Dividing participants into Experimental and Sham groups
+# Experimental Participants - 20133, 76685, 40329, 55596, 69301, 97268, 13457
+# Sham Participants - 26347, 30034, 42937, 37144, 59271, 47969, 88218
+
+data <- data %>%
+  mutate(stgroup = ifelse(Q32 %in% c("20133", "76685", "40329", "55596", "69301",  "97268", "13457"), "Experimental", "Sham"))
+
+head(data) # sanity check
+
+# visualizing the experimental and sham groups to make sure there are equal number of people in both groups
+ggplot(data = data, aes(x = stgroup)) + 
+  geom_bar(stat = "count", fill = "blue", color = "black") + 
+  xlab("Distribution of Participants in the study")
+
+```
+
+## Plotting the variables with "Experimental" and "Sham" groups as the independent variable
+```{r}
+
+training_19 <- data %>%
+  count(stgroup, Q19) %>%
+  ggplot(aes(x = Q19, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("Are cyber attacks on police vehicles a serious concern for you?") +
+  theme_minimal()
+training_19
+
+training_18 <- data %>%
+  count(stgroup, Q18) %>%
+  ggplot(aes(x = Q18, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  xlab("Police Vehicle Susceptibility of CyberAttacks") +
+  theme_minimal()
+training_18
+
+training_13 <- data %>%
+  count(stgroup, Q13) %>%
+  ggplot(aes(x = Q13, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("CyberCrime unit in Police Agency") +
+  theme_minimal()
+training_13
+
+training_12 <- data %>%
+  count(stgroup, Q12) %>%
+  ggplot(aes(x = Q12, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("CyberCrime cases in Police Agency") +
+  theme_minimal()
+training_12
+
+training_14 <- data %>%
+  count(stgroup, Q14) %>%
+  ggplot(aes(x = Q14, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("CyberCrime Training in Police Agency") +
+  theme_minimal()
+training_14
+
+training_8 <- data %>%
+  count(stgroup, Q8) %>%
+  ggplot(aes(x = Q8, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("Hours spent in car") +
+  theme_minimal()
+training_8
+
+training_years <- data %>%
+  count(stgroup, years) %>%
+  ggplot(aes(x = years, y = n, fill = stgroup)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  xlab("Hours spent in car") +
+  theme_minimal()
+training_years
+
+```
+
+# Correlation tests
+``` {r}
+
+# making a subset with certain questions and doing a correlation test on it
+data <- data %>%
+  mutate(gender = case_when(
+    Q2 == "Male" ~ "0",
+    Q2 == "Female" ~ "1",
+    TRUE ~ Q2  
+  ))
+data$gender <- as.numeric(data$gender)
+
+unique(data$Q7)
+
+data <- data %>%
+  mutate(degree = case_when(
+    Q7 == "Some College" ~ "0",
+    Q7 == "Associates" ~ "1",
+    Q7 == "Bachelors" ~ "2",
+    Q7 == "Masters" ~ "3",
+    Q7 == "Doctorate" ~ "4",
+    Q7 != "Some College" & Q7 != "Associates" & Q7 != "Bachelors" & Q7 != "Masters" & Q7 != "Doctorate" ~ as.character(Q7)
+  ))
+data$degree <- as.numeric(data$degree)
+
+data <- data %>%
+  mutate(time = case_when(
+    Q8 == "10 -20" ~ "0",
+    Q8 == "20-30" ~ "1",
+    Q8 == "30-40" ~ "2",
+    Q8 == "40+" ~ "3",
+    Q8 != "10 -20" & Q8 != "20-30" & Q8 != "30-40" & Q8 != "40+" ~ as.character(Q8)
+  ))
+data$time <- as.numeric(data$time)
+
+#creating a dataset with just these 8 questions
+adata <- data[,c("Q1", "gender", "Q6", "time", "Q12", "Q13", "Q14", "Q15", "Q18", "Q19")]
+adata[,5:10]<-ifelse(adata[,5:10]=="Yes",1,0)
+
+#correlation test
+cor(adata) 
+
+#calculating Cronbach's alpha for these 8 questions
+#alpha(x=adata[,1:4], check.keys = TRUE)
+#alpha(x=adata[,5:7], check.keys = TRUE)
+
+```
+
+# Regression Analysis
+```{r}
+# let's conduct some regression models now
+# first we're going to change the stgroup values to numeric - so 1 for experimental and 0 for sham
+data <- data %>%
+  mutate(groupnum = case_when(
+    stgroup == "Experimental" ~ 1,
+    stgroup == "Sham" ~ 0
+  ))
+head(data)
+
+data$groupnum = as.numeric(data$groupnum)
+data$groupnum = as.factor(data$groupnum)
+
+data$stgroup <- as.factor(data$stgroup)
+data$Q19 <- as.factor(data$Q19)
+data$Q16 <- as.factor(data$Q25)
+
+# let's compare the stgroup with understand concerns of vehicle cybersecurity
+summary(glm(Q19 ~ stgroup, data = data, family = binomial))
+
+summary(glm(Q25 ~ stgroup, data = data, family = binomial))
+
+```
+
+
+
+
